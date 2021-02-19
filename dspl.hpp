@@ -58,6 +58,11 @@
 #include "graph.hpp"
 #include "utils.hpp"
 
+extern "C" {
+  void begin_timestep_();
+  void end_timestep_();
+}
+
 struct Comm {
   GraphElem size;
   GraphWeight degree;
@@ -1287,10 +1292,10 @@ GraphWeight distLouvainMethod(const int me, const int nprocs, const Graph &dg,
   std::vector<GraphWeight> vDegree;
   std::vector<GraphWeight> clusterWeight;
   std::vector<Comm> localCinfo, localCupdate;
- 
+
   std::unordered_map<GraphElem, GraphElem> remoteComm;
   std::map<GraphElem,Comm> remoteCinfo, remoteCupdate;
-  
+
   const GraphElem nv = dg.get_lnv();
   MPI_Comm gcomm = dg.get_comm();
 
@@ -1298,52 +1303,53 @@ GraphWeight distLouvainMethod(const int me, const int nprocs, const Graph &dg,
   GraphWeight prevMod = lower;
   GraphWeight currMod = -1.0;
   int numIters = 0;
-  
+
   distInitLouvain(dg, pastComm, currComm, vDegree, clusterWeight, localCinfo, 
           localCupdate, constantForSecondTerm, me);
   targetComm.resize(nv);
 
-#ifdef DEBUG_PRINTF  
+#ifdef DEBUG_PRINTF
   std::cout << "[" << me << "]constantForSecondTerm: " << constantForSecondTerm << std::endl;
   if (me == 0)
       std::cout << "Threshold: " << thresh << std::endl;
 #endif
   const GraphElem base = dg.get_base(me), bound = dg.get_bound(me);
 
-#ifdef DEBUG_PRINTF  
+#ifdef DEBUG_PRINTF
   double t0, t1;
   t0 = MPI_Wtime();
 #endif
 
   // setup vertices and communities
 #if defined(USE_MPI_RMA)
-  exchangeVertexReqs(dg, ssz, rsz, ssizes, rsizes, 
+  exchangeVertexReqs(dg, ssz, rsz, ssizes, rsizes,
           svdata, rvdata, me, nprocs, commwin);
-  
-  // store the remote displacements 
+
+  // store the remote displacements
   std::vector<GraphElem> disp(nprocs);
-  MPI_Exscan(ssizes.data(), (GraphElem*)disp.data(), nprocs, MPI_GRAPH_TYPE, 
+  MPI_Exscan(ssizes.data(), (GraphElem*)disp.data(), nprocs, MPI_GRAPH_TYPE,
           MPI_SUM, gcomm);
 #else
-  exchangeVertexReqs(dg, ssz, rsz, ssizes, rsizes, 
+  exchangeVertexReqs(dg, ssz, rsz, ssizes, rsizes,
           svdata, rvdata, me, nprocs);
 #endif
 
-#ifdef DEBUG_PRINTF  
+#ifdef DEBUG_PRINTF
   t1 = MPI_Wtime();
   std::cout << "[" << me << "]Initial communication setup time before Louvain iteration (in s): " << (t1 - t0) << std::endl;
 #endif
- 
+
   // start Louvain iteration
   while(true) {
-#ifdef DEBUG_PRINTF  
+    begin_timestep_();
+#ifdef DEBUG_PRINTF
     const double t2 = MPI_Wtime();
     if (me == 0)
         std::cout << "Starting Louvain iteration: " << numIters << std::endl;
 #endif
     numIters++;
 
-#ifdef DEBUG_PRINTF  
+#ifdef DEBUG_PRINTF
     t0 = MPI_Wtime();
 #endif
 
@@ -1420,12 +1426,14 @@ GraphWeight distLouvainMethod(const int me, const int nprocs, const Graph &dg,
         currComm[i] = targetComm[i];
         targetComm[i] = tmp;
     }
+
+    end_timestep_();
   } // end of Louvain iteration
 
 #if defined(USE_MPI_RMA)
   MPI_Win_unlock_all(commwin);
   MPI_Win_free(&commwin);
-#endif  
+#endif
 
   iters = numIters;
 
@@ -1436,7 +1444,7 @@ GraphWeight distLouvainMethod(const int me, const int nprocs, const Graph &dg,
   clusterWeight.clear();
   localCinfo.clear();
   localCupdate.clear();
-  
+
   return prevMod;
 } // distLouvainMethod plain
 

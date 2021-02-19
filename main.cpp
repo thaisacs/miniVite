@@ -55,6 +55,10 @@
 
 #include "dspl.hpp"
 
+extern "C" {
+  void init_timestep_();
+  void exit_timestep_();
+}
 // TODO FIXME add options for desired MPI thread-level
 
 static std::string inputFileName;
@@ -74,6 +78,8 @@ static void parseCommandLine(const int argc, char * const argv[]);
 
 int main(int argc, char *argv[])
 {
+  init_timestep_();
+
   double t0, t1, t2, t3, ti = 0.0;
   int max_threads;
 
@@ -89,7 +95,7 @@ int main(int argc, char *argv[])
   } else {
       MPI_Init(&argc, &argv);
   }
-  
+
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
 
@@ -104,7 +110,7 @@ int main(int argc, char *argv[])
   Graph* g = nullptr;
 
   // generate graph only supports RGG as of now
-  if (generateGraph) { 
+  if (generateGraph) {
       GenerateRGG gr(nvRGG);
       g = gr.generate(randomNumberLCG, isUnitEdgeWeight, randomEdgePercent);
   }
@@ -120,25 +126,25 @@ int main(int argc, char *argv[])
   if (showGraph)
       g->print();
 
-#ifdef PRINT_DIST_STATS 
+#ifdef PRINT_DIST_STATS
   g->print_dist_stats();
 #endif
 
   MPI_Barrier(MPI_COMM_WORLD);
-#ifdef DEBUG_PRINTF  
+#ifdef DEBUG_PRINTF
   assert(g);
-#endif  
+#endif
   td1 = MPI_Wtime();
   td = td1 - td0;
 
   MPI_Reduce(&td, &tdt, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
- 
+
   if (me == 0)  {
       if (!generateGraph)
-          std::cout << "Time to read input file and create distributed graph (in s): " 
+          std::cout << "Time to read input file and create distributed graph (in s): "
               << (tdt/nprocs) << std::endl;
       else
-          std::cout << "Time to generate distributed graph of " 
+          std::cout << "Time to generate distributed graph of "
               << nvRGG << " vertices (in s): " << (tdt/nprocs) << std::endl;
   }
 
@@ -152,7 +158,7 @@ int main(int argc, char *argv[])
 #endif
   size_t ssz = 0, rsz = 0;
   int iters = 0;
-    
+
   MPI_Barrier(MPI_COMM_WORLD);
 
   t1 = MPI_Wtime();
@@ -196,6 +202,7 @@ int main(int argc, char *argv[])
   delete g;
   destroyCommunityMPIType();
 
+  exit_timestep_();
   MPI_Finalize();
 
   return 0;
@@ -271,4 +278,5 @@ void parseCommandLine(const int argc, char * const argv[])
       std::cerr << "Invalid random edge percentage for generated graph!" << std::endl;
       MPI_Abort(MPI_COMM_WORLD, -99);
   }
+
 } // parseCommandLine
