@@ -23,7 +23,7 @@ all: $(TARGET)
 	$(CXX) $(CXXFLAGS) -c -o $@ $^
 
 $(TARGET):  $(OBJ)
-	$(CXX) $^ $(OPTFLAGS) -o $@ ../../utils/kernel_stats.o
+	$(CXX) $^ $(OPTFLAGS) -o $@ ../../utils/obj/*.o
 
 .PHONY: clean
 
