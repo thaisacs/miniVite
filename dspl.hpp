@@ -61,6 +61,7 @@
 extern "C" {
   void begin_timestep_();
   void end_timestep_();
+  void after_timestep_();
 }
 
 struct Comm {
@@ -1429,6 +1430,7 @@ GraphWeight distLouvainMethod(const int me, const int nprocs, const Graph &dg,
 
     end_timestep_();
   } // end of Louvain iteration
+  after_timestep_();
 
 #if defined(USE_MPI_RMA)
   MPI_Win_unlock_all(commwin);
